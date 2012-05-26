@@ -303,6 +303,9 @@ func (r *Reporter) processReports() {
 		}
 
 		if testingEnv {
+                        if Verbose {
+                                log.Printf("in test mode, putting stat on testPostChannel")
+                        }
 			testPostChannel <- &testPost{sr.url(), sr.values()}
 			continue
 		}

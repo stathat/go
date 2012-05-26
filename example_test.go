@@ -6,12 +6,15 @@ import (
         "time"
 )
 
-func ExamplePostCount() {
-        err := stathat.PostEZCountOne("go example test run", "info@stathat.com")
+func ExamplePostEZCountOne() {
+        log.Printf("starting example")
+        stathat.Verbose = true
+        err := stathat.PostEZCountOne("go example test run", "patrick@stathat.com")
         if err != nil {
                 log.Printf("error posting ez count one: %v", err)
                 return
         }
         stathat.WaitUntilFinished(5 * time.Second)
+        // Output: something
 }
 
