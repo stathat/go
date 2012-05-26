@@ -336,6 +336,7 @@ func (r *Reporter) WaitUntilFinished(timeout time.Duration) bool {
 	case <-r.done:
 		doneCount++
 		if doneCount == r.poolSize {
+			log.Printf("doneCount %d == poolSize %d", doneCount, r.poolSize)
 			return true
 		}
 	case <-time.After(timeout):
