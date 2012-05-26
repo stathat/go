@@ -10,13 +10,13 @@
 package stathat
 
 import (
-        "fmt"
-        "io/ioutil"
-        "log"
-        "net/http"
-        "net/url"
-        "strconv"
-        "time"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
 )
 
 const hostname = "api.stathat.com"
@@ -24,7 +24,7 @@ const hostname = "api.stathat.com"
 type statKind int
 
 const (
-	_                = iota
+	_                 = iota
 	kcounter statKind = iota
 	kvalue
 )
@@ -67,23 +67,25 @@ type statReport struct {
 
 // Reporter is a StatHat client that can report stat values/counts to the servers.
 type Reporter struct {
-        reports chan *statReport
-        done chan bool
-        client *http.Client
+	reports  chan *statReport
+	done     chan bool
+	client   *http.Client
+	poolSize int
 }
 
 // NewReporter returns a new Reporter.  You must specify the channel bufferSize and the
 // goroutine poolSize.  You can pass in nil for the transport and it will use the
 // default http transport.
 func NewReporter(bufferSize, poolSize int, transport http.RoundTripper) *Reporter {
-        r := new(Reporter)
-        r.client = &http.Client{Transport: transport}
-        r.reports = make(chan *statReport, bufferSize)
-        r.done = make(chan bool)
-        for i := 0; i < poolSize; i++ {
-                go r.processReports()
-        }
-        return r
+	r := new(Reporter)
+	r.client = &http.Client{Transport: transport}
+	r.reports = make(chan *statReport, bufferSize)
+	r.done = make(chan bool)
+	r.poolSize = poolSize
+	for i := 0; i < r.poolSize; i++ {
+		go r.processReports()
+	}
+	return r
 }
 
 // DefaultReporter is the default instance of *Reporter.
@@ -221,7 +223,7 @@ func (sr *statReport) url() string {
 
 // Using the classic API, posts a count to a stat using DefaultReporter.
 func PostCount(statKey, userKey string, count int) error {
-        return DefaultReporter.PostCount(statKey, userKey, count)
+	return DefaultReporter.PostCount(statKey, userKey, count)
 }
 
 // Using the classic API, posts a count of 1 to a stat using DefaultReporter.
@@ -231,7 +233,7 @@ func PostCountOne(statKey, userKey string) error {
 
 // Using the classic API, posts a value to a stat using DefaultReporter.
 func PostValue(statKey, userKey string, value float64) error {
-        return DefaultReporter.PostValue(statKey, userKey, value)
+	return DefaultReporter.PostValue(statKey, userKey, value)
 }
 
 // Using the EZ API, posts a count of 1 to a stat using DefaultReporter.
@@ -241,18 +243,18 @@ func PostEZCountOne(statName, ezkey string) error {
 
 // Using the EZ API, posts a count to a stat using DefaultReporter.
 func PostEZCount(statName, ezkey string, count int) error {
-        return DefaultReporter.PostEZCount(statName, ezkey, count)
+	return DefaultReporter.PostEZCount(statName, ezkey, count)
 }
 
 // Using the EZ API, posts a value to a stat using DefaultReporter.
 func PostEZValue(statName, ezkey string, value float64) error {
-        return DefaultReporter.PostEZValue(statName, ezkey, value)
+	return DefaultReporter.PostEZValue(statName, ezkey, value)
 }
 
 // Wait for all stats to be sent, or until timeout. Useful for simple command-
 // line apps to defer a call to this in main()
 func WaitUntilFinished(timeout time.Duration) bool {
-        return DefaultReporter.WaitUntilFinished(timeout)
+	return DefaultReporter.WaitUntilFinished(timeout)
 }
 
 // Using the classic API, posts a count to a stat.
@@ -263,7 +265,7 @@ func (r *Reporter) PostCount(statKey, userKey string, count int) error {
 
 // Using the classic API, posts a count of 1 to a stat.
 func (r *Reporter) PostCountOne(statKey, userKey string) error {
-        return r.PostCount(statKey, userKey, 1)
+	return r.PostCount(statKey, userKey, 1)
 }
 
 // Using the classic API, posts a value to a stat.
@@ -303,9 +305,9 @@ func (r *Reporter) processReports() {
 		}
 
 		if testingEnv {
-                        if Verbose {
-                                log.Printf("in test mode, putting stat on testPostChannel")
-                        }
+			if Verbose {
+				log.Printf("in test mode, putting stat on testPostChannel")
+			}
 			testPostChannel <- &testPost{sr.url(), sr.values()}
 			continue
 		}
@@ -329,9 +331,13 @@ func (r *Reporter) processReports() {
 // line apps to defer a call to this in main()
 func (r *Reporter) WaitUntilFinished(timeout time.Duration) bool {
 	close(r.reports)
+	doneCount := 0
 	select {
 	case <-r.done:
-		return true
+		doneCount++
+		if doneCount == r.poolSize {
+			return true
+		}
 	case <-time.After(timeout):
 		return false
 	}
