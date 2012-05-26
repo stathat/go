@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -67,10 +68,10 @@ type statReport struct {
 
 // Reporter is a StatHat client that can report stat values/counts to the servers.
 type Reporter struct {
-	reports  chan *statReport
-	done     chan bool
-	client   *http.Client
-	poolSize int
+	reports chan *statReport
+	done    chan bool
+	client  *http.Client
+	wg      *sync.WaitGroup
 }
 
 // NewReporter returns a new Reporter.  You must specify the channel bufferSize and the
@@ -81,8 +82,9 @@ func NewReporter(bufferSize, poolSize int, transport http.RoundTripper) *Reporte
 	r.client = &http.Client{Transport: transport}
 	r.reports = make(chan *statReport, bufferSize)
 	r.done = make(chan bool)
-	r.poolSize = poolSize
-	for i := 0; i < r.poolSize; i++ {
+	r.wg = new(sync.WaitGroup)
+	for i := 0; i < poolSize; i++ {
+		r.wg.Add(1)
 		go r.processReports()
 	}
 	return r
@@ -296,7 +298,7 @@ func (r *Reporter) processReports() {
 		sr, ok := <-r.reports
 
 		if !ok {
-			r.done <- true
+			//r.done <- true
 			break
 		}
 
@@ -325,20 +327,22 @@ func (r *Reporter) processReports() {
 
 		resp.Body.Close()
 	}
+	r.wg.Done()
+}
+
+func (r *Reporter) finish() {
+	close(r.reports)
+	r.wg.Wait()
+	r.done <- true
 }
 
 // Wait for all stats to be sent, or until timeout. Useful for simple command-
 // line apps to defer a call to this in main()
 func (r *Reporter) WaitUntilFinished(timeout time.Duration) bool {
-	close(r.reports)
-	doneCount := 0
+	go r.finish()
 	select {
 	case <-r.done:
-		doneCount++
-		if doneCount == r.poolSize {
-			log.Printf("doneCount %d == poolSize %d", doneCount, r.poolSize)
-			return true
-		}
+		return true
 	case <-time.After(timeout):
 		return false
 	}

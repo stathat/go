@@ -14,9 +14,9 @@ func ExamplePostEZCountOne() {
 		log.Printf("error posting ez count one: %v", err)
 		return
 	}
-        ok := stathat.WaitUntilFinished(5 * time.Second)
-        if ok {
-                log.Printf("ok")
-        }
+	ok := stathat.WaitUntilFinished(5 * time.Second)
+	if ok {
+		log.Printf("ok")
+	}
 	// Output: ok
 }
