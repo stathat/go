@@ -1,3 +1,12 @@
+// Copyright 2012 Numerotron Inc.
+// Use of this source code is governed by an MIT-style license
+// that can be found in the LICENSE file.
+//
+// Developed at www.stathat.com by Patrick Crosby
+// Contact us on twitter with any questions:  twitter.com/stat_hat
+
+// The stathat package makes it easy to post any values to your StatHat
+// account.
 package stathat
 
 import (
@@ -56,12 +65,16 @@ type statReport struct {
 	apiType  apiKind
 }
 
+// Reporter is a StatHat client that can report stat values/counts to the servers.
 type Reporter struct {
         reports chan *statReport
         done chan bool
         client *http.Client
 }
 
+// NewReporter returns a new Reporter.  You must specify the channel bufferSize and the
+// goroutine poolSize.  You can pass in nil for the transport and it will use the
+// default http transport.
 func NewReporter(bufferSize, poolSize int, transport http.RoundTripper) *Reporter {
         r := new(Reporter)
         r.client = &http.Client{Transport: transport}
@@ -73,6 +86,7 @@ func NewReporter(bufferSize, poolSize int, transport http.RoundTripper) *Reporte
         return r
 }
 
+// DefaultReporter is the default instance of *Reporter.
 var DefaultReporter = NewReporter(100000, 10, nil)
 
 var testingEnv = false
@@ -83,6 +97,8 @@ type testPost struct {
 }
 
 var testPostChannel chan *testPost
+
+// The Verbose flag determines if the package should write verbose output to stdout.
 var Verbose = false
 
 func setTesting() {
@@ -203,34 +219,40 @@ func (sr *statReport) url() string {
 	return fmt.Sprintf("http://%s%s", hostname, sr.path())
 }
 
-// Using the classic API, posts a count to a stat.
+// Using the classic API, posts a count to a stat using DefaultReporter.
 func PostCount(statKey, userKey string, count int) error {
         return DefaultReporter.PostCount(statKey, userKey, count)
 }
 
-// Using the classic API, posts a count of 1 to a stat.
+// Using the classic API, posts a count of 1 to a stat using DefaultReporter.
 func PostCountOne(statKey, userKey string) error {
 	return DefaultReporter.PostCountOne(statKey, userKey)
 }
 
-// Using the classic API, posts a value to a stat.
+// Using the classic API, posts a value to a stat using DefaultReporter.
 func PostValue(statKey, userKey string, value float64) error {
         return DefaultReporter.PostValue(statKey, userKey, value)
 }
 
-// Using the EZ API, posts a count of 1 to a stat.
+// Using the EZ API, posts a count of 1 to a stat using DefaultReporter.
 func PostEZCountOne(statName, ezkey string) error {
 	return DefaultReporter.PostEZCountOne(statName, ezkey)
 }
 
-// Using the EZ API, posts a count to a stat.
+// Using the EZ API, posts a count to a stat using DefaultReporter.
 func PostEZCount(statName, ezkey string, count int) error {
         return DefaultReporter.PostEZCount(statName, ezkey, count)
 }
 
-// Using the EZ API, posts a value to a stat.
+// Using the EZ API, posts a value to a stat using DefaultReporter.
 func PostEZValue(statName, ezkey string, value float64) error {
         return DefaultReporter.PostEZValue(statName, ezkey, value)
+}
+
+// Wait for all stats to be sent, or until timeout. Useful for simple command-
+// line apps to defer a call to this in main()
+func WaitUntilFinished(timeout time.Duration) bool {
+        return DefaultReporter.WaitUntilFinished(timeout)
 }
 
 // Using the classic API, posts a count to a stat.
@@ -239,6 +261,7 @@ func (r *Reporter) PostCount(statKey, userKey string, count int) error {
 	return nil
 }
 
+// Using the classic API, posts a count of 1 to a stat.
 func (r *Reporter) PostCountOne(statKey, userKey string) error {
         return r.PostCount(statKey, userKey, 1)
 }
