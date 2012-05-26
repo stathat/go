@@ -298,7 +298,9 @@ func (r *Reporter) processReports() {
 		sr, ok := <-r.reports
 
 		if !ok {
-			//r.done <- true
+			if Verbose {
+				log.Printf("channel closed, stopping processReports()")
+			}
 			break
 		}
 

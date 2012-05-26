@@ -1,6 +1,7 @@
 package stathat_test
 
 import (
+	"fmt"
 	"github.com/stathat/go"
 	"log"
 	"time"
@@ -16,7 +17,7 @@ func ExamplePostEZCountOne() {
 	}
 	ok := stathat.WaitUntilFinished(5 * time.Second)
 	if ok {
-		log.Printf("ok")
+		fmt.Println("ok")
 	}
 	// Output: ok
 }
