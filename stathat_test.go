@@ -29,6 +29,9 @@ func TestNewEZStatCount(t *testing.T) {
 	if x.Value != 1.0 {
 		t.Errorf("expected 1.0")
 	}
+	if x.Timestamp != 0 {
+		t.Errorf("expected 0")
+	}
 }
 
 func TestNewEZStatValue(t *testing.T) {
@@ -74,6 +77,9 @@ func TestNewClassicStatCount(t *testing.T) {
 	}
 	if x.Value != 1.0 {
 		t.Errorf("expected 1.0")
+	}
+	if x.Timestamp != 0 {
+		t.Errorf("expected 0")
 	}
 }
 
@@ -286,5 +292,29 @@ func TestPosts(t *testing.T) {
 	}
 	if p.values.Get("value") != "2.13" {
 		t.Errorf("expected value of 2.13")
+	}
+
+	PostCountTime("statkey", "userkey", 13, 100000)
+	p = <-testPostChannel
+	if p.values.Get("t") != "100000" {
+		t.Errorf("expected t value of 100000, got %s", p.values.Get("t"))
+	}
+
+	PostValueTime("statkey", "userkey", 9.312, 200000)
+	p = <-testPostChannel
+	if p.values.Get("t") != "200000" {
+		t.Errorf("expected t value of 200000, got %s", p.values.Get("t"))
+	}
+
+	PostEZCountTime("a stat", "pc@pc.com", 213, 300000)
+	p = <-testPostChannel
+	if p.values.Get("t") != "300000" {
+		t.Errorf("expected t value of 300000, got %s", p.values.Get("t"))
+	}
+
+	PostEZValueTime("a stat", "pc@pc.com", 2.13, 400000)
+	p = <-testPostChannel
+	if p.values.Get("t") != "400000" {
+		t.Errorf("expected t value of 400000, got %s", p.values.Get("t"))
 	}
 }

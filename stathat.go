@@ -63,11 +63,12 @@ func (ak apiKind) path(sk statKind) string {
 }
 
 type statReport struct {
-	StatKey  string
-	UserKey  string
-	Value    float64
-	statType statKind
-	apiType  apiKind
+	StatKey   string
+	UserKey   string
+	Value     float64
+	Timestamp int64
+	statType  statKind
+	apiType   apiKind
 }
 
 // Reporter is a StatHat client that can report stat values/counts to the servers.
@@ -181,6 +182,9 @@ func (sr *statReport) ezCommonValues() url.Values {
 	result := make(url.Values)
 	result.Set("stat", sr.StatKey)
 	result.Set("ezkey", sr.UserKey)
+	if sr.Timestamp > 0 {
+		result.Set("t", sr.timeString())
+	}
 	return result
 }
 
@@ -188,6 +192,9 @@ func (sr *statReport) classicCommonValues() url.Values {
 	result := make(url.Values)
 	result.Set("key", sr.StatKey)
 	result.Set("ukey", sr.UserKey)
+	if sr.Timestamp > 0 {
+		result.Set("t", sr.timeString())
+	}
 	return result
 }
 
@@ -219,6 +226,10 @@ func (sr *statReport) valueString() string {
 	return strconv.FormatFloat(sr.Value, 'g', -1, 64)
 }
 
+func (sr *statReport) timeString() string {
+	return strconv.FormatInt(sr.Timestamp, 10)
+}
+
 func (sr *statReport) path() string {
 	return sr.apiType.path(sr.statType)
 }
@@ -232,6 +243,12 @@ func PostCount(statKey, userKey string, count int) error {
 	return DefaultReporter.PostCount(statKey, userKey, count)
 }
 
+// Using the classic API, posts a count to a stat using DefaultReporter at a specific
+// time.
+func PostCountTime(statKey, userKey string, count int, timestamp int64) error {
+	return DefaultReporter.PostCountTime(statKey, userKey, count, timestamp)
+}
+
 // Using the classic API, posts a count of 1 to a stat using DefaultReporter.
 func PostCountOne(statKey, userKey string) error {
 	return DefaultReporter.PostCountOne(statKey, userKey)
@@ -240,6 +257,11 @@ func PostCountOne(statKey, userKey string) error {
 // Using the classic API, posts a value to a stat using DefaultReporter.
 func PostValue(statKey, userKey string, value float64) error {
 	return DefaultReporter.PostValue(statKey, userKey, value)
+}
+
+// Using the classic API, posts a value to a stat at a specific time using DefaultReporter.
+func PostValueTime(statKey, userKey string, value float64, timestamp int64) error {
+	return DefaultReporter.PostValueTime(statKey, userKey, value, timestamp)
 }
 
 // Using the EZ API, posts a count of 1 to a stat using DefaultReporter.
@@ -252,9 +274,19 @@ func PostEZCount(statName, ezkey string, count int) error {
 	return DefaultReporter.PostEZCount(statName, ezkey, count)
 }
 
+// Using the EZ API, posts a count to a stat at a specific time using DefaultReporter.
+func PostEZCountTime(statName, ezkey string, count int, timestamp int64) error {
+	return DefaultReporter.PostEZCountTime(statName, ezkey, count, timestamp)
+}
+
 // Using the EZ API, posts a value to a stat using DefaultReporter.
 func PostEZValue(statName, ezkey string, value float64) error {
 	return DefaultReporter.PostEZValue(statName, ezkey, value)
+}
+
+// Using the EZ API, posts a value to a stat at a specific time using DefaultReporter.
+func PostEZValueTime(statName, ezkey string, value float64, timestamp int64) error {
+	return DefaultReporter.PostEZValueTime(statName, ezkey, value, timestamp)
 }
 
 // Wait for all stats to be sent, or until timeout. Useful for simple command-
@@ -269,6 +301,14 @@ func (r *Reporter) PostCount(statKey, userKey string, count int) error {
 	return nil
 }
 
+// Using the classic API, posts a count to a stat at a specific time.
+func (r *Reporter) PostCountTime(statKey, userKey string, count int, timestamp int64) error {
+	x := newClassicStatCount(statKey, userKey, count)
+	x.Timestamp = timestamp
+	r.reports <- x
+	return nil
+}
+
 // Using the classic API, posts a count of 1 to a stat.
 func (r *Reporter) PostCountOne(statKey, userKey string) error {
 	return r.PostCount(statKey, userKey, 1)
@@ -277,6 +317,14 @@ func (r *Reporter) PostCountOne(statKey, userKey string) error {
 // Using the classic API, posts a value to a stat.
 func (r *Reporter) PostValue(statKey, userKey string, value float64) error {
 	r.reports <- newClassicStatValue(statKey, userKey, value)
+	return nil
+}
+
+// Using the classic API, posts a value to a stat at a specific time.
+func (r *Reporter) PostValueTime(statKey, userKey string, value float64, timestamp int64) error {
+	x := newClassicStatValue(statKey, userKey, value)
+	x.Timestamp = timestamp
+	r.reports <- x
 	return nil
 }
 
@@ -291,9 +339,25 @@ func (r *Reporter) PostEZCount(statName, ezkey string, count int) error {
 	return nil
 }
 
+// Using the EZ API, posts a count to a stat at a specific time.
+func (r *Reporter) PostEZCountTime(statName, ezkey string, count int, timestamp int64) error {
+	x := newEZStatCount(statName, ezkey, count)
+	x.Timestamp = timestamp
+	r.reports <- x
+	return nil
+}
+
 // Using the EZ API, posts a value to a stat.
 func (r *Reporter) PostEZValue(statName, ezkey string, value float64) error {
 	r.reports <- newEZStatValue(statName, ezkey, value)
+	return nil
+}
+
+// Using the EZ API, posts a value to a stat at a specific time.
+func (r *Reporter) PostEZValueTime(statName, ezkey string, value float64, timestamp int64) error {
+	x := newEZStatValue(statName, ezkey, value)
+	x.Timestamp = timestamp
+	r.reports <- x
 	return nil
 }
 
