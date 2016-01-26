@@ -297,7 +297,7 @@ func WaitUntilFinished(timeout time.Duration) bool {
 
 // Using the classic API, posts a count to a stat.
 func (r *Reporter) PostCount(statKey, userKey string, count int) error {
-	r.reports <- newClassicStatCount(statKey, userKey, count)
+	r.add(newClassicStatCount(statKey, userKey, count))
 	return nil
 }
 
@@ -305,7 +305,7 @@ func (r *Reporter) PostCount(statKey, userKey string, count int) error {
 func (r *Reporter) PostCountTime(statKey, userKey string, count int, timestamp int64) error {
 	x := newClassicStatCount(statKey, userKey, count)
 	x.Timestamp = timestamp
-	r.reports <- x
+	r.add(x)
 	return nil
 }
 
@@ -316,7 +316,7 @@ func (r *Reporter) PostCountOne(statKey, userKey string) error {
 
 // Using the classic API, posts a value to a stat.
 func (r *Reporter) PostValue(statKey, userKey string, value float64) error {
-	r.reports <- newClassicStatValue(statKey, userKey, value)
+	r.add(newClassicStatValue(statKey, userKey, value))
 	return nil
 }
 
@@ -324,7 +324,7 @@ func (r *Reporter) PostValue(statKey, userKey string, value float64) error {
 func (r *Reporter) PostValueTime(statKey, userKey string, value float64, timestamp int64) error {
 	x := newClassicStatValue(statKey, userKey, value)
 	x.Timestamp = timestamp
-	r.reports <- x
+	r.add(x)
 	return nil
 }
 
@@ -335,7 +335,7 @@ func (r *Reporter) PostEZCountOne(statName, ezkey string) error {
 
 // Using the EZ API, posts a count to a stat.
 func (r *Reporter) PostEZCount(statName, ezkey string, count int) error {
-	r.reports <- newEZStatCount(statName, ezkey, count)
+	r.add(newEZStatCount(statName, ezkey, count))
 	return nil
 }
 
@@ -343,13 +343,13 @@ func (r *Reporter) PostEZCount(statName, ezkey string, count int) error {
 func (r *Reporter) PostEZCountTime(statName, ezkey string, count int, timestamp int64) error {
 	x := newEZStatCount(statName, ezkey, count)
 	x.Timestamp = timestamp
-	r.reports <- x
+	r.add(x)
 	return nil
 }
 
 // Using the EZ API, posts a value to a stat.
 func (r *Reporter) PostEZValue(statName, ezkey string, value float64) error {
-	r.reports <- newEZStatValue(statName, ezkey, value)
+	r.add(newEZStatValue(statName, ezkey, value))
 	return nil
 }
 
@@ -357,21 +357,12 @@ func (r *Reporter) PostEZValue(statName, ezkey string, value float64) error {
 func (r *Reporter) PostEZValueTime(statName, ezkey string, value float64, timestamp int64) error {
 	x := newEZStatValue(statName, ezkey, value)
 	x.Timestamp = timestamp
-	r.reports <- x
+	r.add(x)
 	return nil
 }
 
 func (r *Reporter) processReports() {
-	for {
-		sr, ok := <-r.reports
-
-		if !ok {
-			if Verbose {
-				log.Printf("channel closed, stopping processReports()")
-			}
-			break
-		}
-
+	for sr := range r.reports {
 		if Verbose {
 			log.Printf("posting stat to stathat: %s, %v", sr.url(), sr.values())
 		}
@@ -398,6 +389,13 @@ func (r *Reporter) processReports() {
 		resp.Body.Close()
 	}
 	r.wg.Done()
+}
+
+func (r *Reporter) add(rep *statReport) {
+	select {
+	case r.reports <- rep:
+	default:
+	}
 }
 
 func (r *Reporter) finish() {
