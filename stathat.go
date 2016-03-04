@@ -81,13 +81,15 @@ type Reporter struct {
 }
 
 // NewReporter returns a new Reporter.  You must specify the channel bufferSize and the
-// goroutine poolSize.  You can pass in nil for the transport and it will use the
-// default http transport.
+// goroutine poolSize.  You can pass in nil for the transport and it will create an
+// http transport with MaxIdleConnsPerHost set to the goroutine poolSize.  Note if you
+// pass in your own transport, it's a good idea to have its MaxIdleConnsPerHost be set
+// to at least the poolSize to allow for effective connection reuse.
 func NewReporter(bufferSize, poolSize int, transport http.RoundTripper) *Reporter {
 	r := new(Reporter)
 	if transport == nil {
 		transport = &http.Transport{
-			// Allow for an idle connection per worker.
+			// Allow for an idle connection per goroutine.
 			MaxIdleConnsPerHost: poolSize,
 		}
 	}
@@ -392,8 +394,8 @@ func (r *Reporter) processReports() {
 			body, _ := ioutil.ReadAll(resp.Body)
 			log.Printf("stathat post result: %s", body)
 		} else {
-			// Read the body even if we don't intend to use it.
-			// Otherwise golang won't pool the connection.
+			// Read the body even if we don't intend to use it. Otherwise golang won't pool the connection.
+			// See also: http://stackoverflow.com/questions/17948827/reusing-http-connections-in-golang/17953506#17953506
 			io.Copy(ioutil.Discard, resp.Body)
 		}
 
