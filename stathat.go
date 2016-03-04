@@ -15,6 +15,7 @@ package stathat
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -84,6 +85,12 @@ type Reporter struct {
 // default http transport.
 func NewReporter(bufferSize, poolSize int, transport http.RoundTripper) *Reporter {
 	r := new(Reporter)
+	if transport == nil {
+		transport = &http.Transport{
+			// Allow for an idle connection per worker.
+			MaxIdleConnsPerHost: poolSize,
+		}
+	}
 	r.client = &http.Client{Transport: transport}
 	r.reports = make(chan *statReport, bufferSize)
 	r.done = make(chan bool)
@@ -384,6 +391,10 @@ func (r *Reporter) processReports() {
 		if Verbose {
 			body, _ := ioutil.ReadAll(resp.Body)
 			log.Printf("stathat post result: %s", body)
+		} else {
+			// Read the body even if we don't intend to use it.
+			// Otherwise golang won't pool the connection.
+			io.Copy(ioutil.Discard, resp.Body)
 		}
 
 		resp.Body.Close()
