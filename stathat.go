@@ -127,6 +127,9 @@ type statCache struct {
 func (sc *statCache) AverageValue(statName string) float64 {
 	total := 0.0
 	values := sc.valueStats[statName]
+	if len(values) == 0 {
+		return total
+	}
 	for _, value := range values {
 		total += value
 	}
