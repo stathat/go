@@ -121,7 +121,16 @@ func NewReporter(bufferSize, poolSize int, transport http.RoundTripper) Reporter
 
 type statCache struct {
 	counterStats map[string]int
-	valueStats   map[string]float64
+	valueStats   map[string][]float64
+}
+
+func (sc *statCache) AverageValue(statName string) float64 {
+	total := 0.0
+	values := sc.valueStats[statName]
+	for _, value := range values {
+		total += value
+	}
+	return total / float64(len(values))
 }
 
 // BatchReporter wraps an existing Reporter in order to implement sending stats
@@ -133,9 +142,10 @@ type statCache struct {
 //     sent to the server.
 type BatchReporter struct {
 	sync.Mutex
-	r             Reporter
-	batchInterval time.Duration
-	caches        map[string]*statCache
+	r               Reporter
+	batchInterval   time.Duration
+	caches          map[string]*statCache
+	shutdownBatchCh chan struct{}
 }
 
 // DefaultReporter is the default instance of *Reporter.
@@ -469,9 +479,10 @@ func (r *BasicReporter) WaitUntilFinished(timeout time.Duration) bool {
 func NewBatchReporter(reporter Reporter, interval time.Duration) Reporter {
 
 	br := &BatchReporter{
-		r:             reporter,
-		batchInterval: interval,
-		caches:        make(map[string]*statCache),
+		r:               reporter,
+		batchInterval:   interval,
+		caches:          make(map[string]*statCache),
+		shutdownBatchCh: make(chan struct{}),
 	}
 
 	go br.batchLoop()
@@ -485,7 +496,10 @@ func (br *BatchReporter) getEZCache(ezkey string) *statCache {
 
 	// Fetch ezkey cache
 	if cache, ok = br.caches[ezkey]; !ok {
-		cache = &statCache{}
+		cache = &statCache{
+			counterStats: make(map[string]int),
+			valueStats:   make(map[string][]float64),
+		}
 		br.caches[ezkey] = cache
 	}
 
@@ -511,36 +525,42 @@ func (br *BatchReporter) PostEZValue(statName, ezkey string, value float64) erro
 	defer br.Unlock()
 
 	// Update value cache
-	br.getEZCache(ezkey).valueStats[statName] = value
+	cache := br.getEZCache(ezkey)
+	cache.valueStats[statName] = append(cache.valueStats[statName], value)
 
 	return nil
 }
 
 func (br *BatchReporter) batchPost() {
+
+	// Copy and clear cache
 	br.Lock()
-	defer br.Unlock()
+	caches := br.caches
+	br.caches = make(map[string]*statCache)
+	br.Unlock()
 
 	// Post stats
-	for ezkey, cache := range br.caches {
+	for ezkey, cache := range caches {
 		// Post counters
 		for statName, count := range cache.counterStats {
 			br.r.PostEZCount(statName, ezkey, count)
 		}
 
 		// Post values
-		for statName, value := range cache.valueStats {
-			br.r.PostEZValue(statName, ezkey, value)
+		for statName := range cache.valueStats {
+			br.r.PostEZValue(statName, ezkey, cache.AverageValue(statName))
 		}
 	}
-
-	// Clear cache
-	br.caches = make(map[string]*statCache)
 }
 
 func (br *BatchReporter) batchLoop() {
 	for {
-		br.batchPost()
-		time.Sleep(br.batchInterval)
+		select {
+		case <-br.shutdownBatchCh:
+			return
+		case <-time.After(br.batchInterval):
+			br.batchPost()
+		}
 	}
 }
 
@@ -573,5 +593,11 @@ func (br *BatchReporter) PostEZValueTime(statName, ezkey string, value float64, 
 }
 
 func (br *BatchReporter) WaitUntilFinished(timeout time.Duration) bool {
+	// Shut down batch loop
+	close(br.shutdownBatchCh)
+
+	// One last post
+	br.batchPost()
+
 	return br.r.WaitUntilFinished(timeout)
 }
