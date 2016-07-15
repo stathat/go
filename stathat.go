@@ -474,7 +474,6 @@ func (r *BasicReporter) WaitUntilFinished(timeout time.Duration) bool {
 	case <-time.After(timeout):
 		return false
 	}
-	return false
 }
 
 // NewBatchReporter creates a batching stat reporter. The interval parameter
