@@ -603,3 +603,67 @@ func (br *BatchReporter) WaitUntilFinished(timeout time.Duration) bool {
 
 	return br.r.WaitUntilFinished(timeout)
 }
+
+// NoOpReporter is a reporter that does nothing. Can be useful in testing
+// situations for library users.
+type NoOpReporter struct{}
+
+// NewNoOpReporter create a reporter that does nothing.
+func NewNoOpReporter() Reporter {
+	return NoOpReporter{}
+}
+
+// PostCount does nothing and returns nil.
+func (n NoOpReporter) PostCount(statKey, userKey string, count int) error {
+	return nil
+}
+
+// PostCountTime does nothing and returns nil.
+func (n NoOpReporter) PostCountTime(statKey, userKey string, count int, timestamp int64) error {
+	return nil
+}
+
+// PostCountOne does nothing and returns nil.
+func (n NoOpReporter) PostCountOne(statKey, userKey string) error {
+	return nil
+}
+
+// PostValue does nothing and returns nil.
+func (n NoOpReporter) PostValue(statKey, userKey string, value float64) error {
+	return nil
+}
+
+// PostValueTime does nothing and returns nil.
+func (n NoOpReporter) PostValueTime(statKey, userKey string, value float64, timestamp int64) error {
+	return nil
+}
+
+// PostEZCountOne does nothing and returns nil.
+func (n NoOpReporter) PostEZCountOne(statName, ezkey string) error {
+	return nil
+}
+
+// PostEZCount does nothing and returns nil.
+func (n NoOpReporter) PostEZCount(statName, ezkey string, count int) error {
+	return nil
+}
+
+// PostEZCountTime does nothing and returns nil.
+func (n NoOpReporter) PostEZCountTime(statName, ezkey string, count int, timestamp int64) error {
+	return nil
+}
+
+// PostEZValue does nothing and returns nil.
+func (n NoOpReporter) PostEZValue(statName, ezkey string, value float64) error {
+	return nil
+}
+
+// PostEZValueTime does nothing and returns nil.
+func (n NoOpReporter) PostEZValueTime(statName, ezkey string, value float64, timestamp int64) error {
+	return nil
+}
+
+// WaitUntilFinished does nothing and returns true.
+func (n NoOpReporter) WaitUntilFinished(timeout time.Duration) bool {
+	return true
+}

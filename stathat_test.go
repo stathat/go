@@ -8,6 +8,9 @@ import (
 	"testing"
 )
 
+// Compile time check to ensure NoOpReporter implements the Reporter interface.
+var _ Reporter = NoOpReporter{}
+
 func TestNewEZStatCount(t *testing.T) {
 	setTesting()
 	x := newEZStatCount("abc", "pc@pc.com", 1)
