@@ -503,6 +503,7 @@ func (r *BasicReporter) finish() {
 // Wait for all stats to be sent, or until timeout. Useful for simple command-
 // line apps to defer a call to this in main()
 func (r *BasicReporter) WaitUntilFinished(timeout time.Duration) bool {
+	defer close(r.errCh)
 	go r.finish()
 	select {
 	case <-r.done:
