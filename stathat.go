@@ -85,6 +85,7 @@ type Reporter interface {
 	PostEZValue(statName, ezkey string, value float64) error
 	PostEZValueTime(statName, ezkey string, value float64, timestamp int64) error
 	WaitUntilFinished(timeout time.Duration) bool
+	Errors() chan error
 }
 
 // BasicReporter is a StatHat client that can report stat values/counts to the servers.
@@ -93,6 +94,7 @@ type BasicReporter struct {
 	done    chan bool
 	client  *http.Client
 	wg      *sync.WaitGroup
+	errCh   chan error
 }
 
 // NewReporter returns a new Reporter.  You must specify the channel bufferSize and the
@@ -112,6 +114,35 @@ func NewReporter(bufferSize, poolSize int, transport http.RoundTripper) Reporter
 	r.reports = make(chan *statReport, bufferSize)
 	r.done = make(chan bool)
 	r.wg = new(sync.WaitGroup)
+
+	r.errCh = nil // would block forever
+
+	for i := 0; i < poolSize; i++ {
+		r.wg.Add(1)
+		go r.processReports()
+	}
+	return r
+}
+
+// NewReporterWithErrors returns same Reporter as NewReporter, but it utilizes error channel to return
+// http request sending errors
+func NewReporterWithErrors(bufferSize, errBufferSize, poolSize int, transport http.RoundTripper) Reporter {
+	r := new(BasicReporter)
+	if transport == nil {
+		transport = &http.Transport{
+			// Allow for an idle connection per goroutine.
+			MaxIdleConnsPerHost: poolSize,
+		}
+	}
+	r.client = &http.Client{Transport: transport}
+	r.reports = make(chan *statReport, bufferSize)
+	r.done = make(chan bool)
+	r.wg = new(sync.WaitGroup)
+
+	// using same buffer size, after it it full - errors would be discarded
+	// this makes reading error from this channel optional
+	r.errCh = make(chan error, errBufferSize)
+
 	for i := 0; i < poolSize; i++ {
 		r.wg.Add(1)
 		go r.processReports()
@@ -434,6 +465,11 @@ func (r *BasicReporter) processReports() {
 		resp, err := r.client.PostForm(sr.url(), sr.values())
 		if err != nil {
 			log.Printf("error posting stat to stathat: %s", err)
+			// push error to errors channel. If channel is full or nil - don't block, just discard errors
+			select {
+			case r.errCh <- fmt.Errorf("error posting stat to stathat: %s", err):
+			default:
+			}
 			continue
 		}
 
@@ -467,6 +503,7 @@ func (r *BasicReporter) finish() {
 // Wait for all stats to be sent, or until timeout. Useful for simple command-
 // line apps to defer a call to this in main()
 func (r *BasicReporter) WaitUntilFinished(timeout time.Duration) bool {
+	defer close(r.errCh)
 	go r.finish()
 	select {
 	case <-r.done:
@@ -474,6 +511,10 @@ func (r *BasicReporter) WaitUntilFinished(timeout time.Duration) bool {
 	case <-time.After(timeout):
 		return false
 	}
+}
+
+func (r *BasicReporter) Errors() chan error {
+	return r.errCh
 }
 
 // NewBatchReporter creates a batching stat reporter. The interval parameter
@@ -604,6 +645,10 @@ func (br *BatchReporter) WaitUntilFinished(timeout time.Duration) bool {
 	return br.r.WaitUntilFinished(timeout)
 }
 
+func (br *BatchReporter) Errors() chan error {
+	return br.r.Errors()
+}
+
 // NoOpReporter is a reporter that does nothing. Can be useful in testing
 // situations for library users.
 type NoOpReporter struct{}
@@ -666,4 +711,8 @@ func (n NoOpReporter) PostEZValueTime(statName, ezkey string, value float64, tim
 // WaitUntilFinished does nothing and returns true.
 func (n NoOpReporter) WaitUntilFinished(timeout time.Duration) bool {
 	return true
+}
+
+func (n NoOpReporter) Errors() chan error {
+	return nil
 }
